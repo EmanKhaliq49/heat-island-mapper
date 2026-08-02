@@ -2,7 +2,7 @@
 
 Predicting block-level surface temperature across **Lahore** and **Karachi** using satellite thermal imagery, vegetation and built-up indices, and street-level infrastructure data — with an interactive map that explains *why* each block is hot.
 
-**🔗https://heat-island-mapper.vercel.app/(#)** 
+**🔗https://heat-island-mapper.vercel.app/** 
 
 ![Surface temperature range](https://img.shields.io/badge/R²-0.87–0.89-brightgreen) ![Cities](https://img.shields.io/badge/cities-Lahore%20%7C%20Karachi-blue) ![Grid resolution](https://img.shields.io/badge/resolution-500m-orange)
 
