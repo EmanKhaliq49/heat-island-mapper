@@ -2,7 +2,7 @@
 
 Predicting block-level surface temperature across **Lahore** and **Karachi** using satellite thermal imagery, vegetation and built-up indices, and street-level infrastructure data — with an interactive map that explains *why* each block is hot.
 
-**[🔗 Live Demo](#)** — replace this with your GitHub Pages link once deployed
+**🔗https://heat-island-mapper.vercel.app/(#)** 
 
 ![Surface temperature range](https://img.shields.io/badge/R²-0.87–0.89-brightgreen) ![Cities](https://img.shields.io/badge/cities-Lahore%20%7C%20Karachi-blue) ![Grid resolution](https://img.shields.io/badge/resolution-500m-orange)
 
@@ -89,6 +89,5 @@ Then open `http://localhost:8000` in your browser.
 - Add a temporal dimension — how do these patterns shift across seasons?
 - A "what-if" simulator: predicted temperature change if vegetation cover increased by X%
 
-## License
-
-MIT
+Made by Eman Khaliq
+ekhaliq409@gmail.com
