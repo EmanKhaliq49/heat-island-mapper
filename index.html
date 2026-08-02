@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Urban Heat Island Explorer — Lahore &amp; Karachi</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0F1C;
+    --panel: #121A2E;
+    --panel-border: rgba(124, 139, 168, 0.18);
+    --text: #E8ECF4;
+    --muted: #7C8BA8;
+    --cool: #3B82C4;
+    --mid: #F2A94E;
+    --hot: #E0342E;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    overflow: hidden;
+  }
+
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  #map {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+  }
+
+  /* Leaflet dark tile filter */
+  .leaflet-tile-pane {
+    filter: brightness(0.55) saturate(0.7) contrast(1.05);
+  }
+  .leaflet-container {
+    background: var(--bg) !important;
+  }
+
+  /* Top header */
+  #header {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 1000;
+    background: rgba(18, 26, 46, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    padding: 16px 20px;
+    max-width: 300px;
+  }
+
+  #header h1 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 2px 0;
+    letter-spacing: -0.01em;
+  }
+
+  #header .subtitle {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin: 0 0 14px 0;
+    line-height: 1.5;
+  }
+
+  .city-toggle {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .city-btn {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--muted);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .city-btn:hover {
+    border-color: var(--mid);
+    color: var(--text);
+  }
+
+  .city-btn.active {
+    background: linear-gradient(135deg, var(--mid), var(--hot));
+    border-color: transparent;
+    color: #12070a;
+    font-weight: 600;
+  }
+
+  #stat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--panel-border);
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stat-label {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .stat-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  #driver-note {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--panel-border);
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  #driver-note b { color: var(--text); }
+
+  /* Legend */
+  #legend {
+    position: absolute;
+    bottom: 24px;
+    left: 20px;
+    z-index: 1000;
+    background: rgba(18, 26, 46, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    width: 220px;
+  }
+
+  #legend .legend-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  #legend .gradient-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--cool), var(--mid), var(--hot));
+    margin-bottom: 6px;
+  }
+
+  #legend .gradient-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+
+  /* Diagnostic side panel */
+  #diagnostic {
+    position: absolute;
+    top: 0;
+    right: -380px;
+    width: 340px;
+    height: 100%;
+    background: rgba(15, 21, 38, 0.97);
+    backdrop-filter: blur(16px);
+    border-left: 1px solid var(--panel-border);
+    z-index: 1100;
+    transition: right 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    padding: 28px 24px;
+    overflow-y: auto;
+  }
+
+  #diagnostic.open {
+    right: 0;
+  }
+
+  #diagnostic .close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  #diagnostic .eyebrow {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--hot);
+    margin-bottom: 6px;
+  }
+
+  #diagnostic .headline-temp {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 42px;
+    font-weight: 600;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  #diagnostic .coords {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-bottom: 24px;
+  }
+
+  .driver-item {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .driver-item:last-child {
+    border-bottom: none;
+  }
+
+  .driver-name {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .driver-bar-track {
+    height: 6px;
+    background: rgba(124, 139, 168, 0.15);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+
+  .driver-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+  }
+
+  .driver-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  #hint {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    z-index: 999;
+    background: rgba(18, 26, 46, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  #hint.hidden { display: none; }
+
+  #about-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: rgba(5, 8, 16, 0.72);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  #about-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #about-modal {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    max-width: 480px;
+    width: 90%;
+    max-height: 82vh;
+    overflow-y: auto;
+    padding: 32px 32px 28px;
+    transform: translateY(12px);
+    transition: transform 0.25s ease;
+  }
+
+  #about-overlay.open #about-modal {
+    transform: translateY(0);
+  }
+
+  #about-modal h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 6px 0 16px 0;
+    letter-spacing: -0.01em;
+  }
+
+  #about-modal h3 {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--mid);
+    margin: 22px 0 8px 0;
+  }
+
+  #about-modal p, #about-modal li {
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--muted);
+    margin: 0 0 4px 0;
+  }
+
+  #about-modal b { color: var(--text); }
+
+  #about-modal ul {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+
+  #about-modal li { margin-bottom: 6px; }
+
+  #about-dismiss-btn {
+    margin-top: 24px;
+    width: 100%;
+    background: linear-gradient(135deg, var(--mid), var(--hot));
+    border: none;
+    color: #12070a;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 12px;
+    border-radius: 9px;
+    cursor: pointer;
+  }
+
+  @media (max-width: 640px) {
+    #header { max-width: 240px; padding: 12px 14px; }
+    #legend { width: 160px; }
+    #diagnostic { width: 88vw; right: -90vw; }
+    #hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="header">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <h1 style="margin-right:8px;">Urban Heat Island Explorer</h1>
+    <button id="about-btn" title="About this project" style="flex-shrink:0; background:transparent; border:1px solid var(--panel-border); color:var(--muted); width:26px; height:26px; border-radius:50%; font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:600; cursor:pointer;">i</button>
+  </div>
+  <p class="subtitle">Block-level surface temperature, modeled from satellite thermal imagery + street-level features.</p>
+  <div class="city-toggle">
+    <button class="city-btn active" data-city="lahore">Lahore</button>
+    <button class="city-btn" data-city="karachi">Karachi</button>
+  </div>
+  <div id="stat-row">
+    <div class="stat">
+      <span class="stat-label">Avg Temp</span>
+      <span class="stat-value mono" id="stat-avg">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Hottest Cell</span>
+      <span class="stat-value mono" id="stat-max">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Cells Modeled</span>
+      <span class="stat-value mono" id="stat-count">—</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Model R&sup2;</span>
+      <span class="stat-value mono" id="stat-r2">—</span>
+    </div>
+  </div>
+  <div id="driver-note"></div>
+</div>
+
+<div id="legend">
+  <div class="legend-title">Surface Temperature</div>
+  <div class="gradient-bar"></div>
+  <div class="gradient-labels">
+    <span id="legend-min">—</span>
+    <span id="legend-max">—</span>
+  </div>
+</div>
+
+<div id="hint">Click any block to see its heat diagnosis →</div>
+
+<div id="about-overlay">
+  <div id="about-modal">
+    <div class="eyebrow" style="color:var(--mid);">ABOUT THIS PROJECT</div>
+    <h2>What am I looking at?</h2>
+    <p>This map predicts <b>block-level surface temperature</b> across Lahore and Karachi — how hot the ground itself gets, not the air — using a machine learning model trained on satellite and street-level data.</p>
+
+    <h3>How it works</h3>
+    <p>Each city is divided into a grid of 500m × 500m blocks. For every block, four features are measured from public satellite imagery and map data:</p>
+    <ul>
+      <li><b>NDBI</b> — how built-up / concrete-covered the block is</li>
+      <li><b>NDVI</b> — how much vegetation is present</li>
+      <li><b>Elevation</b> — height above sea level</li>
+      <li><b>Distance to coast</b> &amp; <b>road density</b> — geography and infrastructure</li>
+    </ul>
+    <p>A Random Forest model was trained on real Landsat 8 thermal imagery to learn how these features predict surface temperature — reaching <b>87–89% accuracy (R²)</b> on unseen blocks.</p>
+
+    <h3>What it found</h3>
+    <p>The two cities turned out to be hot for different reasons. In <b>Lahore</b>, an inland city, <b>concrete and built-up density</b> is by far the strongest driver of heat. In <b>Karachi</b>, a coastal city, <b>elevation and distance from the sea</b> dominate instead — the ocean's cooling effect outweighs land-use patterns.</p>
+
+    <h3>Try it</h3>
+    <p>Click any colored block on the map to see a plain-language breakdown of why that specific spot is hot or cool, based on how its features compare to the city average.</p>
+
+    <button id="about-dismiss-btn">Explore the map</button>
+  </div>
+</div>
+
+<div id="diagnostic">
+  <button class="close-btn" id="diag-close">✕</button>
+  <div class="eyebrow" id="diag-eyebrow">DIAGNOSTIC READOUT</div>
+  <div class="headline-temp mono" id="diag-temp">—</div>
+  <div id="diag-area" style="font-size: 15px; font-weight: 500; color: var(--text); margin-bottom: 4px;">Locating…</div>
+  <div class="coords mono" id="diag-coords">—</div>
+  <div id="diag-drivers"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---------- Config ----------
+const CITY_CONFIG = {
+  lahore: {
+    file: 'lahore_data.json',
+    center: [31.5, 74.3],
+    zoom: 11,
+    r2: '0.871',
+    driverNote: 'In Lahore, heat is driven overwhelmingly by <b>surface imperviousness (NDBI)</b> — concrete and built-up density explain most of the block-to-block variation.',
+    // ranked feature importances from the trained model, used for the diagnostic panel
+    importances: [
+      { key: 'ndbi', label: 'Built-up surface (NDBI)', weight: 0.815 },
+      { key: 'ndvi', label: 'Vegetation (NDVI)', weight: 0.087 },
+      { key: 'elevation', label: 'Elevation', weight: 0.058 },
+      { key: 'roads', label: 'Road density', weight: 0.040 },
+    ],
+  },
+  karachi: {
+    file: 'karachi_data.json',
+    center: [24.9, 67.05],
+    zoom: 10,
+    r2: '0.894',
+    driverNote: 'In coastal Karachi, <b>elevation and distance from the coast</b> dominate — the sea\'s cooling influence outweighs land-use patterns.',
+    importances: [
+      { key: 'elevation', label: 'Elevation', weight: 0.616 },
+      { key: 'coast_dist', label: 'Distance to coast', weight: 0.161 },
+      { key: 'ndbi', label: 'Built-up surface (NDBI)', weight: 0.108 },
+      { key: 'ndvi', label: 'Vegetation (NDVI)', weight: 0.086 },
+      { key: 'roads', label: 'Road density', weight: 0.029 },
+    ],
+  },
+};
+
+const FEATURE_META = {
+  ndbi:       { label: 'Built-up surface',  unit: '',   hotWhenHigh: true,  fmt: v => v.toFixed(3) },
+  ndvi:       { label: 'Vegetation',         unit: '',   hotWhenHigh: false, fmt: v => v.toFixed(3) },
+  elevation:  { label: 'Elevation',          unit: 'm',  hotWhenHigh: true,  fmt: v => v.toFixed(0) + 'm' },
+  roads:      { label: 'Road density',       unit: 'm',  hotWhenHigh: true,  fmt: v => Math.round(v).toLocaleString() + 'm' },
+  coast_dist: { label: 'Distance to coast',  unit: 'm',  hotWhenHigh: true,  fmt: v => (v/1000).toFixed(1) + 'km' },
+};
+
+// ---------- Map setup ----------
+const map = L.map('map', { zoomControl: false, attributionControl: false, maxZoom: 15 }).setView([28, 70], 6);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 16,
+}).addTo(map);
+
+let currentLayer = null;
+let currentClickLayer = null;
+let currentCity = 'lahore';
+let cityDataCache = {};
+let cityStatsCache = {};
+let cityGridCache = {};
+
+function tempColorRGB(t, min, max) {
+  const pct = Math.max(0, Math.min(1, (t - min) / (max - min)));
+  const stops = [
+    [59, 130, 196],   // cool
+    [242, 169, 78],   // mid
+    [224, 52, 46],    // hot
+  ];
+  const scaled = pct * (stops.length - 1);
+  const i = Math.min(Math.floor(scaled), stops.length - 2);
+  const localT = scaled - i;
+  const c1 = stops[i], c2 = stops[i + 1];
+  return [
+    Math.round(c1[0] + (c2[0] - c1[0]) * localT),
+    Math.round(c1[1] + (c2[1] - c1[1]) * localT),
+    Math.round(c1[2] + (c2[2] - c1[2]) * localT),
+  ];
+}
+
+function tempColor(t, min, max) {
+  const [r, g, b] = tempColorRGB(t, min, max);
+  return `rgb(${r},${g},${b})`;
+}
+
+function computeStats(cells) {
+  const stats = {};
+  const keys = ['temp', 'ndvi', 'ndbi', 'elevation', 'roads', 'coast_dist'];
+  keys.forEach(k => {
+    const vals = cells.map(c => c[k]).filter(v => v !== undefined && v !== null);
+    if (!vals.length) return;
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+    stats[k] = { min: Math.min(...vals), max: Math.max(...vals), mean, std };
+  });
+  return stats;
+}
+
+async function loadCity(cityKey) {
+  if (cityDataCache[cityKey]) return cityDataCache[cityKey];
+  const cfg = CITY_CONFIG[cityKey];
+  const res = await fetch(cfg.file);
+  const json = await res.json();
+  cityDataCache[cityKey] = json.cells;
+  cityStatsCache[cityKey] = computeStats(json.cells);
+  return json.cells;
+}
+
+const canvasRenderer = L.canvas({ padding: 0.5 });
+
+function renderCity(cityKey, cells) {
+  const cfg = CITY_CONFIG[cityKey];
+  const stats = cityStatsCache[cityKey];
+  const tMin = stats.temp.min, tMax = stats.temp.max;
+
+  if (currentLayer) map.removeLayer(currentLayer);
+  if (currentClickLayer) map.removeLayer(currentClickLayer);
+
+  // Draw each cell as a rectangle slightly LARGER than its true 500m
+  // footprint, so adjacent cells overlap a hair and no gap/seam can
+  // ever show the basemap through — much more robust than relying on
+  // pixel-perfect edge alignment.
+  const cellSizeMeters = 500;
+  const bufferFactor = 1.02;
+  const latOffset = (cellSizeMeters * bufferFactor / 2) / 111320;
+
+  const rectangles = cells.map(cell => {
+    const [r, g, b] = tempColorRGB(cell.temp, tMin, tMax);
+    const color = `rgb(${r},${g},${b})`;
+    const lonOffset = (cellSizeMeters * bufferFactor / 2) / (111320 * Math.cos(cell.lat * Math.PI / 180));
+    const bounds = [
+      [cell.lat - latOffset, cell.lon - lonOffset],
+      [cell.lat + latOffset, cell.lon + lonOffset],
+    ];
+    const rect = L.rectangle(bounds, {
+      renderer: canvasRenderer,
+      fillColor: color,
+      fillOpacity: 1,
+      stroke: false,
+    });
+    rect.on('click', () => {
+      showDiagnostic(cityKey, cell, stats);
+      highlightCell(cell);
+    });
+    return rect;
+  });
+
+  currentLayer = L.layerGroup(rectangles).addTo(map);
+  map.setView(cfg.center, cfg.zoom);
+
+  document.getElementById('stat-avg').textContent = stats.temp.mean.toFixed(1) + '°C';
+  document.getElementById('stat-max').textContent = tMax.toFixed(1) + '°C';
+  document.getElementById('stat-count').textContent = cells.length.toLocaleString();
+  document.getElementById('stat-r2').textContent = cfg.r2;
+  document.getElementById('driver-note').innerHTML = cfg.driverNote;
+
+  document.getElementById('legend-min').textContent = tMin.toFixed(0) + '°C';
+  document.getElementById('legend-max').textContent = tMax.toFixed(0) + '°C';
+}
+
+function highlightCell(cell) {
+  if (currentClickLayer) map.removeLayer(currentClickLayer);
+  currentClickLayer = L.circleMarker([cell.lat, cell.lon], {
+    radius: 8,
+    color: '#fff',
+    weight: 2,
+    fillOpacity: 0,
+  }).addTo(map);
+}
+
+async function switchCity(cityKey) {
+  currentCity = cityKey;
+  document.querySelectorAll('.city-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.city === cityKey);
+  });
+  closeDiagnostic();
+  const cells = await loadCity(cityKey);
+  renderCity(cityKey, cells);
+}
+
+const areaNameCache = {};
+let areaLookupToken = 0;
+
+async function lookupAreaName(lat, lon) {
+  const areaEl = document.getElementById('diag-area');
+  const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  const myToken = ++areaLookupToken;
+
+  if (areaNameCache[key]) {
+    areaEl.textContent = areaNameCache[key];
+    return;
+  }
+
+  areaEl.textContent = 'Locating…';
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+    const data = await res.json();
+
+    // Ignore this result if the user has already clicked elsewhere since
+    if (myToken !== areaLookupToken) return;
+
+    const addr = data.address || {};
+    const name = addr.suburb || addr.neighbourhood || addr.town || addr.city_district
+      || addr.village || addr.county || 'Unnamed area';
+    const city = addr.city || addr.town || '';
+    const label = city && name !== city ? `${name}, ${city}` : name;
+
+    areaNameCache[key] = label;
+    areaEl.textContent = label;
+  } catch (err) {
+    if (myToken === areaLookupToken) areaEl.textContent = 'Area unavailable';
+  }
+}
+
+function showDiagnostic(cityKey, cell, stats) {
+  const cfg = CITY_CONFIG[cityKey];
+  document.getElementById('diag-temp').textContent = cell.temp.toFixed(1) + '°C';
+  document.getElementById('diag-coords').textContent =
+    `${cell.lat.toFixed(4)}, ${cell.lon.toFixed(4)}`;
+  lookupAreaName(cell.lat, cell.lon);
+
+  const vsAvg = cell.temp - stats.temp.mean;
+  document.getElementById('diag-eyebrow').textContent =
+    vsAvg > 0.5 ? `${vsAvg.toFixed(1)}°C ABOVE CITY AVERAGE`
+    : vsAvg < -0.5 ? `${Math.abs(vsAvg).toFixed(1)}°C BELOW CITY AVERAGE`
+    : 'NEAR CITY AVERAGE';
+
+  const driversHtml = cfg.importances.map(imp => {
+    const meta = FEATURE_META[imp.key];
+    const s = stats[imp.key];
+    if (!s || cell[imp.key] === undefined) return '';
+    const z = (cell[imp.key] - s.mean) / (s.std || 1);
+    const pct = Math.round(imp.weight * 100);
+
+    let desc;
+    const highLow = z > 0.4 ? 'higher than' : z < -0.4 ? 'lower than' : 'close to';
+    const effect = (meta.hotWhenHigh ? z > 0.4 : z < -0.4) ? 'pushing this block warmer'
+      : (meta.hotWhenHigh ? z < -0.4 : z > 0.4) ? 'helping cool this block'
+      : 'a minor factor here';
+    desc = `${meta.fmt(cell[imp.key])} — ${highLow} the city average, ${effect}.`;
+
+    const barColor = tempColor(0.5 + z * 0.3, 0, 1);
+
+    return `
+      <div class="driver-item">
+        <div class="driver-name"><span>${meta.label}</span><span class="mono" style="color:var(--muted);font-weight:400;">${pct}% weight</span></div>
+        <div class="driver-bar-track"><div class="driver-bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
+        <div class="driver-desc">${desc}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('diag-drivers').innerHTML = driversHtml;
+  document.getElementById('diagnostic').classList.add('open');
+  document.getElementById('hint').classList.add('hidden');
+}
+
+function closeDiagnostic() {
+  document.getElementById('diagnostic').classList.remove('open');
+}
+
+document.getElementById('diag-close').addEventListener('click', closeDiagnostic);
+document.querySelectorAll('.city-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchCity(btn.dataset.city));
+});
+
+// ---------- Init ----------
+// ---------- About modal ----------
+const aboutOverlay = document.getElementById('about-overlay');
+document.getElementById('about-btn').addEventListener('click', () => aboutOverlay.classList.add('open'));
+document.getElementById('about-dismiss-btn').addEventListener('click', () => aboutOverlay.classList.remove('open'));
+aboutOverlay.addEventListener('click', (e) => {
+  if (e.target === aboutOverlay) aboutOverlay.classList.remove('open');
+});
+
+// ---------- Init ----------
+switchCity('lahore');
+aboutOverlay.classList.add('open'); // show intro automatically on first load
+</script>
+
+</body>
+</html>
